@@ -1,0 +1,31 @@
+services:
+  lerobot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-huggingface/lerobot-cpu:latest}
+        SEEED_LEROBOT_REF: ${SEEED_LEROBOT_REF:-0f392484458cb5ebca0310c0c4c47390a31c80ed}
+    image: ${IMAGE_NAME:-seeed-lerobot}:${IMAGE_TAG:-cpu}
+    container_name: ${CONTAINER_NAME:-seeed-lerobot}
+    stdin_open: true
+    tty: true
+    privileged: true
+    ipc: host
+    network_mode: host
+    environment:
+      DISPLAY: ${DISPLAY:-}
+      QT_X11_NO_MITSHM: "1"
+      HF_HOME: /home/user_lerobot/.cache/huggingface
+      HF_LEROBOT_HOME: /home/user_lerobot/.cache/huggingface/lerobot
+      TORCH_HOME: /home/user_lerobot/.cache/torch
+      TRITON_CACHE_DIR: /home/user_lerobot/.cache/triton
+    volumes:
+      - /dev:/dev
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./workspace:/workspace
+      - ./cache/hf:/home/user_lerobot/.cache/huggingface
+      - ./cache/torch:/home/user_lerobot/.cache/torch
+      - ./cache/triton:/home/user_lerobot/.cache/triton
+    working_dir: /workspace
+    command: /bin/bash

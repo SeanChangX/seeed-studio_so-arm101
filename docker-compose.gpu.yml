@@ -1,0 +1,10 @@
+services:
+  lerobot:
+    build:
+      args:
+        BASE_IMAGE: huggingface/lerobot-gpu:latest
+    image: ${IMAGE_NAME:-seeed-lerobot}:${IMAGE_TAG:-gpu}
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+    gpus: all
