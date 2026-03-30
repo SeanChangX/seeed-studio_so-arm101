@@ -19,6 +19,14 @@ Create workspace and cache directories:
 mkdir -p workspace cache/hf cache/torch cache/triton
 ```
 
+Build image only when needed (first run or after Dockerfile changes):
+
+```bash
+./scripts/lerobot-docker.sh build cpu
+# or
+./scripts/lerobot-docker.sh build gpu
+```
+
 CPU:
 
 ```bash

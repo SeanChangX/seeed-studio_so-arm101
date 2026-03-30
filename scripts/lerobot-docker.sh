@@ -8,6 +8,7 @@ GPU_COMPOSE=(-f "${ROOT_DIR}/docker-compose.yml" -f "${ROOT_DIR}/docker-compose.
 usage() {
   cat <<'EOF'
 Usage:
+  ./scripts/lerobot-docker.sh build [cpu|gpu]
   ./scripts/lerobot-docker.sh up [cpu|gpu]
   ./scripts/lerobot-docker.sh shell [cpu|gpu]
   ./scripts/lerobot-docker.sh down
@@ -31,23 +32,32 @@ cmd="${1:-}"
 profile="${2:-cpu}"
 
 case "${cmd}" in
+  build)
+    mode="$(select_compose "${profile}")"
+    mkdir -p "${ROOT_DIR}/workspace" "${ROOT_DIR}/cache/hf" "${ROOT_DIR}/cache/torch" "${ROOT_DIR}/cache/triton"
+    if [[ "${mode}" == "gpu" ]]; then
+      docker compose "${GPU_COMPOSE[@]}" build
+    else
+      docker compose "${BASE_COMPOSE[@]}" build
+    fi
+    ;;
   up)
     mode="$(select_compose "${profile}")"
     mkdir -p "${ROOT_DIR}/workspace" "${ROOT_DIR}/cache/hf" "${ROOT_DIR}/cache/torch" "${ROOT_DIR}/cache/triton"
     if [[ "${mode}" == "gpu" ]]; then
-      docker compose "${GPU_COMPOSE[@]}" up -d --build
+      docker compose "${GPU_COMPOSE[@]}" up -d
     else
-      docker compose "${BASE_COMPOSE[@]}" up -d --build
+      docker compose "${BASE_COMPOSE[@]}" up -d
     fi
     ;;
   shell)
     mode="$(select_compose "${profile}")"
     mkdir -p "${ROOT_DIR}/workspace" "${ROOT_DIR}/cache/hf" "${ROOT_DIR}/cache/torch" "${ROOT_DIR}/cache/triton"
     if [[ "${mode}" == "gpu" ]]; then
-      docker compose "${GPU_COMPOSE[@]}" up -d --build
+      docker compose "${GPU_COMPOSE[@]}" up -d
       docker compose "${GPU_COMPOSE[@]}" exec lerobot /bin/bash
     else
-      docker compose "${BASE_COMPOSE[@]}" up -d --build
+      docker compose "${BASE_COMPOSE[@]}" up -d
       docker compose "${BASE_COMPOSE[@]}" exec lerobot /bin/bash
     fi
     ;;
