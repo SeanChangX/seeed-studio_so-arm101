@@ -4,7 +4,10 @@ This setup provides a Docker-based deployment for `Seeed SO-100/SO-101 + LeRobot
 
 - Uses official base images: `huggingface/lerobot-cpu` / `huggingface/lerobot-gpu`
 - Adds the Seeed wiki recommended fork: `Seeed-Projects/lerobot` (with `.[feetech]`)
+- Optional ROS2 Humble profiles for `so101_ros2` integration
 - Mounts `/dev`, cache directories, and workspace by default
+
+Note: `humble` / `humble-gpu` profiles use `ros:humble-ros-base-jammy` as base image to keep ROS2 package compatibility.
 
 ## 1) Requirements
 
@@ -19,25 +22,27 @@ Create workspace and cache directories:
 mkdir -p workspace cache/hf cache/torch cache/triton
 ```
 
-Build image only when needed (first run or after Dockerfile changes):
+Start Command Deck:
 
 ```bash
-./scripts/lerobot-docker.sh build cpu
-# or
-./scripts/lerobot-docker.sh build gpu
+./scripts/lerobot-docker.sh
 ```
 
-CPU:
+Recommended first-time flow in Command Deck:
 
-```bash
-./scripts/lerobot-docker.sh shell cpu
-```
+1. Start Command Deck and choose profile once
+2. Run `quickstart`
 
-GPU:
+Profile is kept for the whole session. Use `switch-profile` only when needed.
+`quickstart` is one-flow by profile:
 
-```bash
-./scripts/lerobot-docker.sh shell gpu
-```
+- `cpu/gpu`: build + shell
+- `humble/humble-gpu`: build + ros2-setup + shell
+
+Quickstart build policy:
+
+- if target image already exists, `quickstart` skips build
+- use `build` action to force rebuild image
 
 ## 3) Verify Environment
 
@@ -49,27 +54,29 @@ python -c "import torch; print('cuda:', torch.cuda.is_available())"
 python -c "import lerobot; print('lerobot ok')"
 ```
 
-## 4) Common Commands
-
-Start in background:
+If profile is `humble` or `humble-gpu`, also verify:
 
 ```bash
-./scripts/lerobot-docker.sh up cpu
-# or
-./scripts/lerobot-docker.sh up gpu
+python -c "import rclpy; print('rclpy ok')"
+ros2 topic list
+colcon --help | head -n 2
 ```
 
-View logs:
+## 4) Command Deck Actions
 
-```bash
-./scripts/lerobot-docker.sh logs
-```
+- `quickstart`: one-flow start (auto-skip build when image exists)
+- `build`: build image
+- `up`: start container
+- `shell`: open interactive shell
+- `ros2-setup`: clone `so101_ros2`, install rosdep packages, and run `colcon build`
+- `logs`: stream logs
+- `down`: stop container
+- `switch-profile`: change active profile for the rest of the session
 
-Stop:
+Notes:
 
-```bash
-./scripts/lerobot-docker.sh down
-```
+- `ros2-setup` is available only when active profile is `humble` or `humble-gpu`
+- `quickstart` works on all profiles
 
 ## 5) Mapping to Seeed Wiki
 
@@ -87,7 +94,7 @@ Both are already done during image build, so after entering the container you ca
   - `/dev` is already mounted in compose; if permission is still denied, run on host: `sudo chmod 666 /dev/ttyACM*`
 - GPU not detected:
   - Check `nvidia-smi` on host first
-  - Then run `./scripts/lerobot-docker.sh shell gpu`
+  - Then run action `shell` with profile `gpu`
 
 ## 7) Teleoperate Example (SO101)
 
@@ -99,4 +106,19 @@ lerobot-teleoperate \
     --teleop.type=so101_leader \
     --teleop.port=/dev/ttyACM1 \
     --teleop.id=my_awesome_leader_arm
+```
+
+## 8) Start ROS2 Humble Integration (`so101_ros2`)
+
+Open Command Deck and choose:
+
+1. choose profile `humble` (or `humble-gpu`) once
+2. `ros2-setup`
+3. `shell`
+4. inside container: `source /workspace/ros2_ws/install/local_setup.bash`
+
+Then validate:
+
+```bash
+ros2 pkg list | grep so101
 ```

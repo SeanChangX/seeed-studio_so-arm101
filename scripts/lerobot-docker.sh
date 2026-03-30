@@ -4,11 +4,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE_COMPOSE=(-f "${ROOT_DIR}/docker-compose.yml")
 GPU_COMPOSE=(-f "${ROOT_DIR}/docker-compose.yml" -f "${ROOT_DIR}/docker-compose.gpu.yml")
+HUMBLE_COMPOSE=(-f "${ROOT_DIR}/docker-compose.yml" -f "${ROOT_DIR}/docker-compose.humble.yml")
+HUMBLE_GPU_COMPOSE=(-f "${ROOT_DIR}/docker-compose.yml" -f "${ROOT_DIR}/docker-compose.humble-gpu.yml")
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
   C_RESET="$(tput sgr0)"
   C_BOLD="$(tput bold)"
-  C_DIM="$(tput dim)"
   C_RED="$(tput setaf 1)"
   C_GREEN="$(tput setaf 2)"
   C_YELLOW="$(tput setaf 3)"
@@ -18,7 +19,6 @@ if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/nul
 else
   C_RESET=""
   C_BOLD=""
-  C_DIM=""
   C_RED=""
   C_GREEN=""
   C_YELLOW=""
@@ -68,79 +68,318 @@ error() {
 
 usage() {
   print_box "${C_MAGENTA}" \
-    "LeRobot Docker Launcher" \
+    "SO-ARM Command Deck" \
     "" \
-    "Usage:" \
-    "  ./scripts/lerobot-docker.sh build [cpu|gpu]" \
-    "  ./scripts/lerobot-docker.sh up [cpu|gpu]" \
-    "  ./scripts/lerobot-docker.sh shell [cpu|gpu]" \
-    "  ./scripts/lerobot-docker.sh down" \
-    "  ./scripts/lerobot-docker.sh logs"
+    "This launcher uses Command Deck mode." \
+    "Run without arguments:" \
+    "  ./scripts/lerobot-docker.sh"
 }
 
-select_compose() {
-  local profile="${1:-cpu}"
-  if [[ "${profile}" == "gpu" ]]; then
-    echo "gpu"
-  elif [[ "${profile}" == "cpu" ]]; then
-    echo "cpu"
-  else
-    error "Unsupported profile: ${profile}"
-    exit 1
-  fi
+is_interactive_terminal() {
+  [[ -t 0 && -t 1 ]]
 }
 
 compose_run() {
   local mode="$1"
   shift
-  if [[ "${mode}" == "gpu" ]]; then
-    docker compose "${GPU_COMPOSE[@]}" "$@"
-  else
-    docker compose "${BASE_COMPOSE[@]}" "$@"
-  fi
+  case "${mode}" in
+    gpu)
+      docker compose "${GPU_COMPOSE[@]}" "$@"
+      ;;
+    humble)
+      docker compose "${HUMBLE_COMPOSE[@]}" "$@"
+      ;;
+    humble-gpu)
+      docker compose "${HUMBLE_GPU_COMPOSE[@]}" "$@"
+      ;;
+    *)
+      docker compose "${BASE_COMPOSE[@]}" "$@"
+      ;;
+  esac
 }
 
 ensure_dirs() {
-  mkdir -p "${ROOT_DIR}/workspace" "${ROOT_DIR}/cache/hf" "${ROOT_DIR}/cache/torch" "${ROOT_DIR}/cache/triton"
+  mkdir -p \
+    "${ROOT_DIR}/workspace" \
+    "${ROOT_DIR}/workspace/ros2_ws/src" \
+    "${ROOT_DIR}/cache/hf" \
+    "${ROOT_DIR}/cache/torch" \
+    "${ROOT_DIR}/cache/triton"
 }
 
-cmd="${1:-}"
-profile="${2:-cpu}"
+ensure_humble_mode() {
+  local mode="$1"
+  case "${mode}" in
+    humble|humble-gpu) ;;
+    *)
+      error "ros2-setup only supports humble or humble-gpu profiles"
+      exit 1
+      ;;
+  esac
+}
 
-case "${cmd}" in
-  build)
-    mode="$(select_compose "${profile}")"
-    print_box "${C_BLUE}" "Build image" "profile: ${mode}" "project: ${ROOT_DIR}"
-    ensure_dirs
-    compose_run "${mode}" build
-    success "Build completed (${mode})"
-    ;;
-  up)
-    mode="$(select_compose "${profile}")"
-    print_box "${C_BLUE}" "Start container" "profile: ${mode}" "mode: detached"
-    ensure_dirs
-    compose_run "${mode}" up -d
-    success "Container started (${mode})"
-    ;;
-  shell)
-    mode="$(select_compose "${profile}")"
-    print_box "${C_BLUE}" "Open shell" "profile: ${mode}" "container: lerobot"
-    ensure_dirs
-    compose_run "${mode}" up -d
-    info "Launching interactive shell with TERM=${TERM:-xterm-256color}"
-    compose_run "${mode}" exec -e TERM="${TERM:-xterm-256color}" -e COLORTERM=truecolor lerobot /bin/bash -i
-    ;;
-  down)
-    warn "Stopping container"
-    docker compose "${BASE_COMPOSE[@]}" down
-    success "Container stopped"
-    ;;
-  logs)
-    info "Streaming logs"
-    docker compose "${BASE_COMPOSE[@]}" logs -f --tail=200
-    ;;
-  *)
-    usage
-    exit 1
-    ;;
-esac
+run_build() {
+  local mode="$1"
+  print_box "${C_BLUE}" "Build image" "profile: ${mode}" "project: ${ROOT_DIR}"
+  ensure_dirs
+  compose_run "${mode}" build
+  success "Build completed (${mode})"
+}
+
+default_image_tag_for_mode() {
+  local mode="$1"
+  case "${mode}" in
+    gpu) echo "gpu" ;;
+    humble) echo "humble" ;;
+    humble-gpu) echo "humble-gpu" ;;
+    *) echo "cpu" ;;
+  esac
+}
+
+image_ref_for_mode() {
+  local mode="$1"
+  local image_name="${IMAGE_NAME:-seanchangx/seeed-lerobot}"
+  local image_tag="${IMAGE_TAG:-$(default_image_tag_for_mode "${mode}")}"
+  printf "%s:%s" "${image_name}" "${image_tag}"
+}
+
+image_exists_for_mode() {
+  local mode="$1"
+  local image_ref
+  image_ref="$(image_ref_for_mode "${mode}")"
+  docker image inspect "${image_ref}" >/dev/null 2>&1
+}
+
+run_up() {
+  local mode="$1"
+  print_box "${C_BLUE}" "Start container" "profile: ${mode}" "mode: detached"
+  ensure_dirs
+  compose_run "${mode}" up -d
+  success "Container started (${mode})"
+}
+
+run_shell() {
+  local mode="$1"
+  print_box "${C_BLUE}" "Open shell" "profile: ${mode}" "container: lerobot"
+  ensure_dirs
+  compose_run "${mode}" up -d
+  info "Launching interactive shell with TERM=${TERM:-xterm-256color}"
+  compose_run "${mode}" exec -e TERM="${TERM:-xterm-256color}" -e COLORTERM=truecolor lerobot /bin/bash -i
+}
+
+run_down() {
+  local mode="$1"
+  warn "Stopping container"
+  compose_run "${mode}" down
+  success "Container stopped (${mode})"
+}
+
+run_logs() {
+  local mode="$1"
+  info "Streaming logs"
+  compose_run "${mode}" logs -f --tail=200
+}
+
+ros2_setup() {
+  local mode="$1"
+  local repo_url="${SO101_ROS2_REPO_URL:-https://github.com/nimiCurtis/so101_ros2.git}"
+  local ws_dir="/workspace/ros2_ws"
+  local repo_dir="${ws_dir}/src/so101_ros2"
+  local rosdep_skip="${ROSDEP_SKIP_KEYS:-topic_based_ros2_control_msgs}"
+
+  ensure_humble_mode "${mode}"
+  ensure_dirs
+  print_box "${C_BLUE}" "Bootstrap so101_ros2" "profile: ${mode}" "workspace: ${ws_dir}"
+
+  compose_run "${mode}" up -d
+
+  info "Ensuring so101_ros2 sources exist"
+  compose_run "${mode}" exec -T lerobot bash -lc "\
+set -euo pipefail; \
+mkdir -p '${ws_dir}/src'; \
+if [ ! -d '${repo_dir}/.git' ]; then \
+  git clone --recurse-submodules '${repo_url}' '${repo_dir}'; \
+else \
+  git -C '${repo_dir}' submodule update --init --recursive; \
+fi"
+
+  info "Installing ROS dependencies (with rosdep retry)"
+  compose_run "${mode}" exec -T -u root lerobot bash -lc "\
+set -eo pipefail; \
+source /opt/ros/humble/setup.bash; \
+cd '${ws_dir}'; \
+apt-get update; \
+for i in 1 2 3; do \
+  if rosdep update; then break; fi; \
+  if [ \"\${i}\" -eq 3 ]; then \
+    echo 'rosdep update failed after 3 attempts' >&2; \
+    exit 1; \
+  fi; \
+  sleep 5; \
+done; \
+rosdep install --from-paths src --ignore-src -r -y --skip-keys '${rosdep_skip}'"
+
+  info "Building ROS2 workspace"
+  compose_run "${mode}" exec -T lerobot bash -lc "\
+set -eo pipefail; \
+source /opt/ros/humble/setup.bash; \
+cd '${ws_dir}'; \
+colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release"
+
+  success "ROS2 workspace bootstrap completed (${mode})"
+  info "Load workspace in shell: source /workspace/ros2_ws/install/local_setup.bash"
+}
+
+ACTION_SELECTED=""
+PROFILE_SELECTED=""
+ACTIVE_PROFILE=""
+
+is_humble_profile() {
+  local mode="$1"
+  [[ "${mode}" == "humble" || "${mode}" == "humble-gpu" ]]
+}
+
+prompt_action() {
+  local options=()
+  local selection=""
+  local hint=""
+
+  if is_humble_profile "${ACTIVE_PROFILE}"; then
+    options=("quickstart" "build" "up" "shell" "ros2-setup" "logs" "down" "switch-profile" "quit")
+    hint="quickstart = build + ros2-setup + shell"
+  else
+    options=("quickstart" "build" "up" "shell" "logs" "down" "switch-profile" "quit")
+    hint="quickstart = build + shell (switch to humble/humble-gpu for ROS2 setup)"
+  fi
+
+  print_box "${C_BLUE}" \
+    "SO-ARM Command Deck" \
+    "Active profile: ${ACTIVE_PROFILE}" \
+    "Choose an action" \
+    "${hint}"
+
+  PS3="Action> "
+  select selection in "${options[@]}"; do
+    case "${selection}" in
+      quickstart|build|up|shell|ros2-setup|logs|down|switch-profile|quit)
+        ACTION_SELECTED="${selection}"
+        return 0
+        ;;
+      *)
+        warn "Invalid selection, choose a number from the list"
+        ;;
+    esac
+  done
+}
+
+prompt_profile() {
+  local options=()
+  local selection=""
+  options=("cpu" "gpu" "humble" "humble-gpu")
+
+  PS3="Profile> "
+  select selection in "${options[@]}"; do
+    case "${selection}" in
+      cpu|gpu|humble|humble-gpu)
+        PROFILE_SELECTED="${selection}"
+        return 0
+        ;;
+      *)
+        warn "Invalid profile, choose a number from the list"
+        ;;
+    esac
+  done
+}
+
+set_active_profile() {
+  prompt_profile
+  ACTIVE_PROFILE="${PROFILE_SELECTED}"
+  success "Active profile set to: ${ACTIVE_PROFILE}"
+}
+
+require_humble_profile() {
+  if ! is_humble_profile "${ACTIVE_PROFILE}"; then
+    error "This action requires humble or humble-gpu. Use switch-profile first."
+    return 1
+  fi
+}
+
+ask_continue() {
+  local answer=""
+  printf "Run another action? [Y/n] "
+  read -r answer
+  case "${answer}" in
+    n|N|no|NO)
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+run_command_deck_once() {
+  local action=""
+
+  prompt_action
+  action="${ACTION_SELECTED}"
+
+  case "${action}" in
+    quit)
+      warn "Exited Command Deck"
+      exit 0
+      ;;
+    quickstart)
+      if image_exists_for_mode "${ACTIVE_PROFILE}"; then
+        info "Image already exists: $(image_ref_for_mode "${ACTIVE_PROFILE}")"
+        info "Skip build in quickstart. Use action 'build' to rebuild."
+      else
+        info "Image not found, running build first."
+        run_build "${ACTIVE_PROFILE}"
+      fi
+      if is_humble_profile "${ACTIVE_PROFILE}"; then
+        ros2_setup "${ACTIVE_PROFILE}"
+      fi
+      run_shell "${ACTIVE_PROFILE}"
+      ;;
+    ros2-setup)
+      require_humble_profile || return 0
+      ros2_setup "${ACTIVE_PROFILE}"
+      ;;
+    build|up|shell|logs|down)
+      case "${action}" in
+        build) run_build "${ACTIVE_PROFILE}" ;;
+        up) run_up "${ACTIVE_PROFILE}" ;;
+        shell) run_shell "${ACTIVE_PROFILE}" ;;
+        logs) run_logs "${ACTIVE_PROFILE}" ;;
+        down) run_down "${ACTIVE_PROFILE}" ;;
+      esac
+      ;;
+    switch-profile)
+      set_active_profile
+      ;;
+  esac
+}
+
+if [[ "$#" -gt 0 ]]; then
+  error "Command Deck mode only. Run without arguments."
+  usage
+  exit 1
+fi
+
+if ! is_interactive_terminal; then
+  error "Interactive terminal required for Command Deck mode."
+  usage
+  exit 1
+fi
+
+print_box "${C_BLUE}" "SO-ARM Command Deck" "Choose your working profile (you can switch later)"
+set_active_profile
+
+while true; do
+  run_command_deck_once
+  if ! ask_continue; then
+    success "Done"
+    exit 0
+  fi
+done
