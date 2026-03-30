@@ -88,3 +88,15 @@ Both are already done during image build, so after entering the container you ca
 - GPU not detected:
   - Check `nvidia-smi` on host first
   - Then run `./scripts/lerobot-docker.sh shell gpu`
+
+## 7) Teleoperate Example (SO101)
+
+```bash
+lerobot-teleoperate \
+    --robot.type=so101_follower \
+    --robot.port=/dev/ttyACM0 \
+    --robot.id=my_awesome_follower_arm \
+    --teleop.type=so101_leader \
+    --teleop.port=/dev/ttyACM1 \
+    --teleop.id=my_awesome_leader_arm
+```
