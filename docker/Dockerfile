@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.22
 
 ARG BASE_IMAGE=huggingface/lerobot-cpu:latest
 FROM ${BASE_IMAGE}
