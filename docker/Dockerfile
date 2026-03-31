@@ -55,6 +55,22 @@ RUN --mount=type=cache,target=/home/user_lerobot/.cache/uv,uid=1000,gid=1000,mod
     git clone https://github.com/Seeed-Projects/lerobot.git lerobot-seeed \
     && cd lerobot-seeed \
     && git checkout ${SEEED_LEROBOT_REF} \
+    && if [ ! -f src/lerobot/robots/so101_follower.py ]; then \
+         printf '%s\n' \
+           'from lerobot.robots.so_follower.so_follower import SOFollower as SO101Follower' \
+           'from lerobot.robots.so_follower.config_so_follower import SOFollowerConfig as SO101FollowerConfig' \
+           '' \
+           '__all__ = ["SO101Follower", "SO101FollowerConfig"]' \
+           > src/lerobot/robots/so101_follower.py; \
+       fi \
+    && if [ ! -f src/lerobot/teleoperators/so101_leader.py ]; then \
+         printf '%s\n' \
+           'from lerobot.teleoperators.so_leader.so_leader import SOLeader as SO101Leader' \
+           'from lerobot.teleoperators.so_leader.config_so_leader import SOLeaderConfig as SO101LeaderConfig' \
+           '' \
+           '__all__ = ["SO101Leader", "SO101LeaderConfig"]' \
+           > src/lerobot/teleoperators/so101_leader.py; \
+       fi \
     && export UV_HTTP_TIMEOUT=600 UV_HTTP_RETRIES=10 \
     && for attempt in 1 2 3; do \
          /lerobot/.venv/bin/uv pip install -e ".[feetech,transformers-dep]" \
@@ -89,6 +105,14 @@ if [ -f /opt/ros/humble/setup.bash ]; then
   export ROS_DISTRO=humble
   export ROS_VERSION=2
   export RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+fi
+
+if [ -z "${LECONDA_SITE_PACKAGES:-}" ] && [ -d /home/user_lerobot/lerobot-seeed/src ]; then
+  export LECONDA_SITE_PACKAGES=/home/user_lerobot/lerobot-seeed/src:/lerobot/.venv/lib/python3.10/site-packages
+fi
+
+if [ -z "${PYTHONPATH:-}" ]; then
+  export PYTHONPATH=/home/user_lerobot/lerobot-seeed/src:/lerobot/.venv/lib/python3.10/site-packages
 fi
 
 PS1='\[\e[38;5;45m\]\u\[\e[0m\]@\[\e[38;5;220m\]\h\[\e[0m\]:\[\e[38;5;111m\]\w\[\e[0m\]\$ '
