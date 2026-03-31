@@ -1,0 +1,211 @@
+diff --git a/so101_bringup/launch/so101_teleoperate.launch.py b/so101_bringup/launch/so101_teleoperate.launch.py
+index 994d785..56e5277 100644
+--- a/so101_bringup/launch/so101_teleoperate.launch.py
++++ b/so101_bringup/launch/so101_teleoperate.launch.py
+@@ -31,7 +31,7 @@ from launch.actions import (
+ )
+ from launch.conditions import IfCondition
+ from launch.launch_description_sources import PythonLaunchDescriptionSource
+-from launch.substitutions import EqualsSubstitution, LaunchConfiguration
++from launch.substitutions import EqualsSubstitution, LaunchConfiguration, PythonExpression
+ 
+ 
+ def generate_launch_description():
+@@ -80,11 +80,19 @@ def generate_launch_description():
+     )
+     args.append(expert_arg)
+ 
++    enable_cameras_arg = DeclareLaunchArgument(
++        'enable_cameras',
++        default_value='true',
++        description='Launch camera nodes in real mode',
++    )
++    args.append(enable_cameras_arg)
++
+     model = LaunchConfiguration('model')
+     display_config = LaunchConfiguration('display_config')
+     display = LaunchConfiguration('display')
+     teleop_mode = LaunchConfiguration('teleop_mode')
+     expert = LaunchConfiguration('expert')
++    enable_cameras = LaunchConfiguration('enable_cameras')
+ 
+     # Debug: Log the mode
+     mode_log = LogInfo(msg=['[TELEOP LAUNCH] Mode is set to: ', teleop_mode])
+@@ -142,7 +150,9 @@ def generate_launch_description():
+     # Include cameras - ONLY in real mode
+     camera_log = LogInfo(
+         msg='[TELEOP LAUNCH] Launching cameras',
+-        condition=IfCondition(EqualsSubstitution(teleop_mode, 'real')),
++        condition=IfCondition(
++            PythonExpression(["'", teleop_mode, "' == 'real' and '", enable_cameras, "' == 'true'"])
++        ),
+     )
+     actions.append(camera_log)
+ 
+@@ -150,7 +160,9 @@ def generate_launch_description():
+         PythonLaunchDescriptionSource(
+             os.path.join(bringup_pkg, 'launch', 'include', 'camera.launch.py')
+         ),
+-        condition=IfCondition(EqualsSubstitution(teleop_mode, 'real')),
++        condition=IfCondition(
++            PythonExpression(["'", teleop_mode, "' == 'real' and '", enable_cameras, "' == 'true'"])
++        ),
+     )
+     actions.append(cameras_launch)
+ 
+diff --git a/so101_controller/launch/so101_controllers.launch.py b/so101_controller/launch/so101_controllers.launch.py
+index 8dd1da1..9e03c23 100644
+--- a/so101_controller/launch/so101_controllers.launch.py
++++ b/so101_controller/launch/so101_controllers.launch.py
+@@ -21,6 +21,8 @@
+ # SOFTWARE.
+ 
+ from launch import LaunchDescription
++from launch.conditions import IfCondition
++from launch.substitutions import EqualsSubstitution
+ from launch.substitutions import LaunchConfiguration
+ from launch_ros.actions import Node
+ 
+@@ -34,6 +36,7 @@ def generate_launch_description():
+         arguments=['arm_controller', '--controller-manager', 'controller_manager'],
+         output='screen',
+         namespace=robot_type,
++        condition=IfCondition(EqualsSubstitution(robot_type, 'follower')),
+     )
+ 
+     gripper_controller_spawner = Node(
+@@ -42,6 +45,7 @@ def generate_launch_description():
+         arguments=['gripper_controller', '--controller-manager', 'controller_manager'],
+         output='screen',
+         namespace=robot_type,
++        condition=IfCondition(EqualsSubstitution(robot_type, 'follower')),
+     )
+ 
+     joint_state_broadcaster_spawner = Node(
+diff --git a/so101_ros2_bridge/launch/so101_ros2_bridge.launch.py b/so101_ros2_bridge/launch/so101_ros2_bridge.launch.py
+index fe19f60..b5e2a21 100644
+--- a/so101_ros2_bridge/launch/so101_ros2_bridge.launch.py
++++ b/so101_ros2_bridge/launch/so101_ros2_bridge.launch.py
+@@ -20,6 +20,7 @@
+ 
+ 
+ from launch import LaunchDescription
++from launch.actions import DeclareLaunchArgument
+ from launch.substitutions import (
+     LaunchConfiguration,
+     PathJoinSubstitution,
+@@ -30,6 +31,11 @@ from launch_ros.substitutions import FindPackageShare
+ 
+ 
+ def generate_launch_description():
++    type_arg = DeclareLaunchArgument(
++        'type',
++        default_value='follower',
++        description='SO101 bridge type: follower or leader',
++    )
+     robot_type = LaunchConfiguration('type')
+ 
+     # Use PathJoinSubstitution to build the path to the config file dynamically
+@@ -68,6 +74,7 @@ def generate_launch_description():
+ 
+     return LaunchDescription(
+         [
++            type_arg,
+             so101_bridge_node,
+         ]
+     )
+diff --git a/so101_ros2_bridge/so101_ros2_bridge/bridge/build.py b/so101_ros2_bridge/so101_ros2_bridge/bridge/build.py
+index d4e6d6f..96c5a59 100644
+--- a/so101_ros2_bridge/so101_ros2_bridge/bridge/build.py
++++ b/so101_ros2_bridge/so101_ros2_bridge/bridge/build.py
+@@ -19,6 +19,7 @@
+ # THE SOFTWARE.
+ 
+ 
++import inspect
+ from pathlib import Path
+ 
+ # Ensure the conda site-packages directory is in the system path
+@@ -32,25 +33,70 @@ from lerobot.teleoperators.so101_leader import SO101Leader, SO101LeaderConfig
+ from so101_ros2_bridge.bridge.registry import register_robot
+ 
+ 
++def _build_config(config_cls, raw_kwargs: dict):
++    """Build config object while handling minor API drift across lerobot forks."""
++    signature = inspect.signature(config_cls)
++    accepted = set(signature.parameters.keys())
++    kwargs = dict(raw_kwargs)
++
++    # Support either calibration_dir (nimiCurtis) or calibration_path (Seeed SOFollowerConfig).
++    if 'calibration_dir' in kwargs and 'calibration_dir' not in accepted:
++        if 'calibration_path' in accepted:
++            kwargs['calibration_path'] = kwargs['calibration_dir']
++
++    filtered_kwargs = {k: v for k, v in kwargs.items() if k in accepted}
++    config = config_cls(**filtered_kwargs)
++
++    # Backfill missing attrs expected by older/newer robot base classes.
++    for key, value in raw_kwargs.items():
++        if hasattr(config, key):
++            continue
++        try:
++            setattr(config, key, value)
++        except Exception:
++            # Some config objects may be frozen/slots-only; best effort only.
++            pass
++
++    # Keep both names available when either side expects a specific calibration field.
++    if not hasattr(config, 'calibration_dir') and hasattr(config, 'calibration_path'):
++        try:
++            setattr(config, 'calibration_dir', getattr(config, 'calibration_path'))
++        except Exception:
++            pass
++    if not hasattr(config, 'calibration_path') and hasattr(config, 'calibration_dir'):
++        try:
++            setattr(config, 'calibration_path', getattr(config, 'calibration_dir'))
++        except Exception:
++            pass
++
++    return config
++
++
+ @register_robot('follower')
+ def create_follower(params: dict):
+-    config = SO101FollowerConfig(
+-        port=params['port'],
+-        calibration_dir=Path(params['calibration_dir']),
+-        id=params['id'],
+-        use_degrees=params['use_degrees'],
+-        max_relative_target=params['max_relative_target'],
+-        disable_torque_on_disconnect=params['disable_torque_on_disconnect'],
++    config = _build_config(
++        SO101FollowerConfig,
++        {
++            'port': params['port'],
++            'calibration_dir': Path(params['calibration_dir']),
++            'id': params['id'],
++            'use_degrees': params['use_degrees'],
++            'max_relative_target': params['max_relative_target'],
++            'disable_torque_on_disconnect': params['disable_torque_on_disconnect'],
++        },
+     )
+     return SO101Follower(config)
+ 
+ 
+ @register_robot('leader')
+ def create_leader(params: dict):
+-    config = SO101LeaderConfig(
+-        port=params['port'],
+-        calibration_dir=Path(params['calibration_dir']),
+-        id=params['id'],
+-        use_degrees=params['use_degrees'],
++    config = _build_config(
++        SO101LeaderConfig,
++        {
++            'port': params['port'],
++            'calibration_dir': Path(params['calibration_dir']),
++            'id': params['id'],
++            'use_degrees': params['use_degrees'],
++        },
+     )
+     return SO101Leader(config)
