@@ -22,6 +22,8 @@ services:
       HF_LEROBOT_HOME: /home/user_lerobot/.cache/huggingface/lerobot
       TORCH_HOME: /home/user_lerobot/.cache/torch
       TRITON_CACHE_DIR: /home/user_lerobot/.cache/triton
+      LECONDA_SITE_PACKAGES: /home/user_lerobot/lerobot-seeed/src:/lerobot/.venv/lib/python3.10/site-packages
+      PYTHONPATH: /home/user_lerobot/lerobot-seeed/src:/lerobot/.venv/lib/python3.10/site-packages
     volumes:
       - /dev:/dev
       - /tmp/.X11-unix:/tmp/.X11-unix:rw

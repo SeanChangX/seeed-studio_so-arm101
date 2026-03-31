@@ -1,0 +1,10 @@
+services:
+  lerobot:
+    build:
+      args:
+        BASE_IMAGE: ros:humble-ros-base-jammy
+        ENABLE_ROS2_HUMBLE: "1"
+    image: ${IMAGE_NAME:-seanchangx/seeed-lerobot}:${IMAGE_TAG:-humble}
+    environment:
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      ROS_DISTRO: humble
