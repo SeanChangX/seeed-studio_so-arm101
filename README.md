@@ -16,12 +16,6 @@ Note: `humble` / `humble-gpu` profiles use `ros:humble-ros-base-jammy` as base i
 
 ## 2) Quick Start
 
-Create workspace and cache directories:
-
-```bash
-mkdir -p workspace cache/hf cache/torch cache/triton
-```
-
 Start Command Deck:
 
 ```bash
