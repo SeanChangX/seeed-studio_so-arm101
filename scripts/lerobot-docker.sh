@@ -118,6 +118,24 @@ ensure_humble_mode() {
   esac
 }
 
+ensure_xhost_access() {
+  if [[ -z "${DISPLAY:-}" ]]; then
+    warn "DISPLAY is not set; skipping xhost setup"
+    return 0
+  fi
+
+  if ! command -v xhost >/dev/null 2>&1; then
+    warn "xhost is not installed on host; GUI apps may not render"
+    return 0
+  fi
+
+  if xhost +local:docker >/dev/null 2>&1; then
+    success "X11 access enabled for local docker containers"
+  else
+    warn "xhost setup failed; GUI apps may not render"
+  fi
+}
+
 run_build() {
   local mode="$1"
   print_box "${C_BLUE}" "Build image" "profile: ${mode}" "project: ${ROOT_DIR}"
@@ -201,6 +219,7 @@ run_up() {
   local mode="$1"
   print_box "${C_BLUE}" "Start container" "profile: ${mode}" "mode: detached"
   ensure_dirs
+  ensure_xhost_access
   compose_run "${mode}" up -d
   success "Container started (${mode})"
 }
@@ -209,6 +228,7 @@ run_shell() {
   local mode="$1"
   print_box "${C_BLUE}" "Open shell" "profile: ${mode}" "container: lerobot"
   ensure_dirs
+  ensure_xhost_access
   compose_run "${mode}" up -d
   info "Launching interactive shell with TERM=${TERM:-xterm-256color}"
   compose_run "${mode}" exec -e TERM="${TERM:-xterm-256color}" -e COLORTERM=truecolor lerobot /bin/bash -i
@@ -277,6 +297,18 @@ colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release"
   info "Load workspace in shell: source /workspace/ros2_ws/install/local_setup.bash"
 }
 
+run_usb_serial_setup() {
+  local helper="${ROOT_DIR}/scripts/soarm-usb-setup.sh"
+  print_box "${C_BLUE}" "SO-ARM USB Setup" "Detect tty device via replug flow" "Apply chmod 666 automatically"
+
+  if [[ ! -f "${helper}" ]]; then
+    error "Helper script not found: ${helper}"
+    return 1
+  fi
+
+  bash "${helper}"
+}
+
 ACTION_SELECTED=""
 PROFILE_SELECTED=""
 ACTIVE_PROFILE=""
@@ -292,10 +324,10 @@ prompt_action() {
   local hint=""
 
   if is_humble_profile "${ACTIVE_PROFILE}"; then
-    options=("quickstart" "build" "up" "shell" "ros2-setup" "logs" "down" "switch-profile" "quit")
+    options=("quickstart" "build" "up" "shell" "ros2-setup" "soarm-usb-setup" "logs" "down" "switch-profile" "quit")
     hint="quickstart = build + ros2-setup + shell"
   else
-    options=("quickstart" "build" "up" "shell" "logs" "down" "switch-profile" "quit")
+    options=("quickstart" "build" "up" "shell" "soarm-usb-setup" "logs" "down" "switch-profile" "quit")
     hint="quickstart = build + shell (switch to humble/humble-gpu for ROS2 setup)"
   fi
 
@@ -308,7 +340,7 @@ prompt_action() {
   PS3="Action> "
   select selection in "${options[@]}"; do
     case "${selection}" in
-      quickstart|build|up|shell|ros2-setup|logs|down|switch-profile|quit)
+      quickstart|build|up|shell|ros2-setup|soarm-usb-setup|logs|down|switch-profile|quit)
         ACTION_SELECTED="${selection}"
         return 0
         ;;
@@ -397,6 +429,9 @@ run_command_deck_once() {
     ros2-setup)
       require_humble_profile || return 0
       ros2_setup "${ACTIVE_PROFILE}"
+      ;;
+    soarm-usb-setup)
+      run_usb_serial_setup
       ;;
     build|up|shell|logs|down)
       case "${action}" in

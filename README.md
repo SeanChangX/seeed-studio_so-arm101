@@ -65,6 +65,7 @@ colcon --help | head -n 2
 - `up`: start container
 - `shell`: open interactive shell
 - `ros2-setup`: clone `so101_ros2`, install rosdep packages, and run `colcon build`
+- `soarm-usb-setup`: detect SO-ARM tty by replug flow and run `chmod 666` automatically
 - `logs`: stream logs
 - `down`: stop container
 - `switch-profile`: change active profile for the rest of the session
@@ -73,6 +74,7 @@ Notes:
 
 - `ros2-setup` is available only when active profile is `humble` or `humble-gpu`
 - `quickstart` works on all profiles
+- `up` / `shell` automatically run `xhost +local:docker` when `DISPLAY` is set
 
 ## 5) Mapping to Seeed Wiki
 
