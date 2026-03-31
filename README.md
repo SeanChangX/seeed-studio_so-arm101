@@ -120,3 +120,58 @@ Then validate:
 ```bash
 ros2 pkg list | grep so101
 ```
+
+## 9) Common ROS2 Flows (Humble / Humble-GPU)
+
+Always source ROS first in each new shell:
+
+```bash
+source /opt/ros/humble/setup.bash
+source /workspace/ros2_ws/install/local_setup.bash
+```
+
+Full teleop launch (human leader + follower, RViz + cameras):
+
+```bash
+ros2 launch so101_bringup so101_teleoperate.launch.py \
+  teleop_mode:=real \
+  expert:=human \
+  display:=true \
+  enable_cameras:=true
+```
+
+Headless teleop launch (no RViz, no cameras):
+
+```bash
+ros2 launch so101_bringup so101_teleoperate.launch.py \
+  teleop_mode:=real \
+  expert:=human \
+  display:=false \
+  enable_cameras:=false
+```
+
+If you do not have side RealSense yet, keep only USB claw camera in
+`so101_bringup/config/so101_cameras.yaml` and remove/comment the `cam_side` entry.
+Then rebuild:
+
+```bash
+cd /workspace/ros2_ws
+colcon build --packages-select so101_bringup
+source /workspace/ros2_ws/install/local_setup.bash
+```
+
+When switching profile (`humble` <-> `humble-gpu`), rebuild ROS packages once in that profile:
+
+```bash
+cd /workspace/ros2_ws
+colcon build --packages-select so101_ros2_bridge so101_bringup so101_controller so101_teleop
+source /workspace/ros2_ws/install/local_setup.bash
+```
+
+Quick runtime checks:
+
+```bash
+ros2 param get /follower/so101_follower_interface max_relative_target
+ros2 topic hz /leader/joint_states
+ros2 topic hz /follower/joint_states_raw
+```
