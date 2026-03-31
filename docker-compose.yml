@@ -6,7 +6,7 @@ services:
       args:
         BASE_IMAGE: ${BASE_IMAGE:-huggingface/lerobot-cpu:latest}
         SEEED_LEROBOT_REF: ${SEEED_LEROBOT_REF:-0f392484458cb5ebca0310c0c4c47390a31c80ed}
-    image: ${IMAGE_NAME:-seanchangx/seeed-lerobot}:${IMAGE_TAG:-cpu}
+    image: ${IMAGE_NAME:-ghcr.io/seanchangx/seeed-studio_so-arm101}:${IMAGE_TAG:-cpu}
     container_name: ${CONTAINER_NAME:-seeed-lerobot}
     stdin_open: true
     tty: true

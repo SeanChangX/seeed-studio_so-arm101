@@ -36,6 +36,8 @@ Profile is kept for the whole session. Use `switch-profile` only when needed.
 Quickstart build policy:
 
 - if target image already exists, `quickstart` skips build
+- if target image does not exist locally, `quickstart` pulls from `IMAGE_NAME` first
+- if primary pull fails, `quickstart` tries `IMAGE_FALLBACK_NAME` (Docker Hub fallback)
 - use `build` action to force rebuild image
 
 ## 3) Verify Environment

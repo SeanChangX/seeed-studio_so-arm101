@@ -1,0 +1,89 @@
+name: Build And Publish Docker Images
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docker/**"
+      - "docker-compose*.yml"
+      - "docker-compose*.yaml"
+      - ".github/workflows/docker-build-and-push.yml"
+  pull_request:
+    paths:
+      - "docker/**"
+      - "docker-compose*.yml"
+      - "docker-compose*.yaml"
+      - ".github/workflows/docker-build-and-push.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: cpu
+            base_image: huggingface/lerobot-cpu:latest
+            enable_ros2_humble: "0"
+          - variant: gpu
+            base_image: huggingface/lerobot-gpu:latest
+            enable_ros2_humble: "0"
+          - variant: humble
+            base_image: ros:humble-ros-base-jammy
+            enable_ros2_humble: "1"
+          - variant: humble-gpu
+            base_image: ros:humble-ros-base-jammy
+            enable_ros2_humble: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute image name
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=${{ matrix.variant }}-
+            type=raw,value=${{ matrix.variant }},enable={{is_default_branch}}
+
+      - name: Build and (optionally) push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          platforms: linux/amd64
+          build-args: |
+            BASE_IMAGE=${{ matrix.base_image }}
+            ENABLE_ROS2_HUMBLE=${{ matrix.enable_ros2_humble }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}

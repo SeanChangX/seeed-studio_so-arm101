@@ -3,7 +3,7 @@ services:
     build:
       args:
         BASE_IMAGE: huggingface/lerobot-gpu:latest
-    image: ${IMAGE_NAME:-seanchangx/seeed-lerobot}:${IMAGE_TAG:-gpu}
+    image: ${IMAGE_NAME:-ghcr.io/seanchangx/seeed-studio_so-arm101}:${IMAGE_TAG:-gpu}
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: all

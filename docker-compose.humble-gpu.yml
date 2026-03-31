@@ -4,7 +4,7 @@ services:
       args:
         BASE_IMAGE: ros:humble-ros-base-jammy
         ENABLE_ROS2_HUMBLE: "1"
-    image: ${IMAGE_NAME:-seanchangx/seeed-lerobot}:${IMAGE_TAG:-humble-gpu}
+    image: ${IMAGE_NAME:-ghcr.io/seanchangx/seeed-studio_so-arm101}:${IMAGE_TAG:-humble-gpu}
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: all
