@@ -2,10 +2,15 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BASE_COMPOSE=(-f "${ROOT_DIR}/docker-compose.yml")
-GPU_COMPOSE=(-f "${ROOT_DIR}/docker-compose.yml" -f "${ROOT_DIR}/docker-compose.gpu.yml")
-HUMBLE_COMPOSE=(-f "${ROOT_DIR}/docker-compose.yml" -f "${ROOT_DIR}/docker-compose.humble.yml")
-HUMBLE_GPU_COMPOSE=(-f "${ROOT_DIR}/docker-compose.yml" -f "${ROOT_DIR}/docker-compose.humble-gpu.yml")
+DOCKER_DIR="${ROOT_DIR}/docker"
+
+compose_common_args() {
+  local -n _out="$1"
+  _out=(--project-directory "${ROOT_DIR}")
+  if [[ -f "${DOCKER_DIR}/.env" ]]; then
+    _out+=(--env-file "${DOCKER_DIR}/.env")
+  fi
+}
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
   C_RESET="$(tput sgr0)"
@@ -72,6 +77,7 @@ usage() {
     "" \
     "This launcher uses Command Deck mode." \
     "Run without arguments:" \
+    "  ./soarmctl docker" \
     "  ./scripts/lerobot-docker.sh"
 }
 
@@ -82,18 +88,31 @@ is_interactive_terminal() {
 compose_run() {
   local mode="$1"
   shift
+  local -a prefix
+  compose_common_args prefix
   case "${mode}" in
     gpu)
-      docker compose "${GPU_COMPOSE[@]}" "$@"
+      docker compose "${prefix[@]}" \
+        -f "${DOCKER_DIR}/docker-compose.yml" \
+        -f "${DOCKER_DIR}/docker-compose.gpu.yml" \
+        "$@"
       ;;
     humble)
-      docker compose "${HUMBLE_COMPOSE[@]}" "$@"
+      docker compose "${prefix[@]}" \
+        -f "${DOCKER_DIR}/docker-compose.yml" \
+        -f "${DOCKER_DIR}/docker-compose.humble.yml" \
+        "$@"
       ;;
     humble-gpu)
-      docker compose "${HUMBLE_GPU_COMPOSE[@]}" "$@"
+      docker compose "${prefix[@]}" \
+        -f "${DOCKER_DIR}/docker-compose.yml" \
+        -f "${DOCKER_DIR}/docker-compose.humble-gpu.yml" \
+        "$@"
       ;;
     *)
-      docker compose "${BASE_COMPOSE[@]}" "$@"
+      docker compose "${prefix[@]}" \
+        -f "${DOCKER_DIR}/docker-compose.yml" \
+        "$@"
       ;;
   esac
 }

@@ -6,14 +6,10 @@ on:
       - main
     paths:
       - "docker/**"
-      - "docker-compose*.yml"
-      - "docker-compose*.yaml"
       - ".github/workflows/docker-build-and-push.yml"
   pull_request:
     paths:
       - "docker/**"
-      - "docker-compose*.yml"
-      - "docker-compose*.yaml"
       - ".github/workflows/docker-build-and-push.yml"
   workflow_dispatch:
 

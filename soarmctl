@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPTS_DIR="${ROOT_DIR}/scripts"
+
+# Registry rows: "alias1 alias2 ...|script_name|one-line description"
+# To add a command: append a row and implement scripts/<script_name>.
+SOARMCTL_REGISTRY=(
+  "docker deck lerobot|lerobot-docker.sh|LeRobot Docker Command Deck (interactive)"
+  "usb soarm-usb|soarm-usb-setup.sh|SO-ARM USB serial detection and permissions"
+)
+
+usage() {
+  cat <<EOF
+soarmctl — SO-ARM control plane (dispatch to scripts/)
+
+Usage: $0 <command> [args...]
+
+Commands:
+EOF
+  local row aliases rest script desc
+  for row in "${SOARMCTL_REGISTRY[@]}"; do
+    aliases="${row%%|*}"
+    rest="${row#*|}"
+    script="${rest%%|*}"
+    desc="${rest#*|}"
+    printf "  %-28s %s\n" "${aliases// /, }" "${desc}"
+  done
+  cat <<EOF
+
+Examples:
+  $0 docker
+  $0 usb
+
+Extend: edit SOARMCTL_REGISTRY in $0, then add scripts/<name>.sh
+EOF
+}
+
+script_for_command() {
+  local want="$1"
+  local row aliases rest script a
+  for row in "${SOARMCTL_REGISTRY[@]}"; do
+    aliases="${row%%|*}"
+    rest="${row#*|}"
+    script="${rest%%|*}"
+    for a in ${aliases}; do
+      if [[ "${want}" == "${a}" ]]; then
+        printf "%s" "${script}"
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+main() {
+  local cmd="${1:-}"
+  if [[ -z "${cmd}" || "${cmd}" == "help" || "${cmd}" == "-h" || "${cmd}" == "--help" ]]; then
+    usage
+    exit 0
+  fi
+  shift || true
+
+  local script
+  if ! script="$(script_for_command "${cmd}")"; then
+    printf "Unknown command: %s\n" "${cmd}" >&2
+    printf "Run: %s help\n" "$0" >&2
+    exit 1
+  fi
+
+  exec bash "${SCRIPTS_DIR}/${script}" "$@"
+}
+
+main "$@"

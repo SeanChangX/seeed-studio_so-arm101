@@ -16,11 +16,25 @@ Note: `humble` / `humble-gpu` profiles use `ros:humble-ros-base-jammy` as base i
 
 ## 2) Quick Start
 
+Copy environment template (optional):
+
+```bash
+cp docker/.env.example docker/.env
+```
+
 Start Command Deck:
+
+```bash
+./soarmctl docker
+```
+
+Same entry via `scripts/`:
 
 ```bash
 ./scripts/lerobot-docker.sh
 ```
+
+Other helpers: run `./soarmctl help` (for example `./soarmctl usb` for USB serial setup).
 
 Recommended first-time flow in Command Deck:
 
