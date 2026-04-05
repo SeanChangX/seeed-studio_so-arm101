@@ -268,11 +268,10 @@ run_logs() {
 
 ros2_setup() {
   local mode="$1"
-  local repo_url="${SO101_ROS2_REPO_URL:-https://github.com/nimiCurtis/so101_ros2.git}"
+  local repo_url="${SO101_ROS2_REPO_URL:-https://github.com/SeanChangX/so101_ros2.git}"
+  local repo_branch="${SO101_ROS2_REPO_BRANCH:-seeed-so-arm101-base}"
   local ws_dir="/workspace/ros2_ws"
   local repo_dir="${ws_dir}/src/so101_ros2"
-  local host_repo_dir="${ROOT_DIR}/workspace/ros2_ws/src/so101_ros2"
-  local compat_patch="${ROOT_DIR}/scripts/patches/so101_ros2-compat.patch"
   local rosdep_skip="${ROSDEP_SKIP_KEYS:-topic_based_ros2_control_msgs}"
 
   ensure_humble_mode "${mode}"
@@ -281,28 +280,27 @@ ros2_setup() {
 
   compose_run "${mode}" up -d
 
-  info "Ensuring so101_ros2 sources exist"
+  info "Syncing so101_ros2 sources from ${repo_url} (${repo_branch})"
   compose_run "${mode}" exec -T lerobot bash -lc "\
 set -euo pipefail; \
 mkdir -p '${ws_dir}/src'; \
 if [ ! -d '${repo_dir}/.git' ]; then \
-  git clone --recurse-submodules '${repo_url}' '${repo_dir}'; \
+  git clone --recurse-submodules --branch '${repo_branch}' '${repo_url}' '${repo_dir}'; \
 else \
+  current_origin=\$(git -C '${repo_dir}' remote get-url origin || true); \
+  if [ \"\${current_origin}\" != '${repo_url}' ]; then \
+    git -C '${repo_dir}' remote set-url origin '${repo_url}'; \
+  fi; \
+  git -C '${repo_dir}' fetch --prune origin '${repo_branch}'; \
+  if git -C '${repo_dir}' show-ref --verify --quiet 'refs/heads/${repo_branch}'; then \
+    git -C '${repo_dir}' checkout '${repo_branch}'; \
+  else \
+    git -C '${repo_dir}' checkout -B '${repo_branch}' 'origin/${repo_branch}'; \
+  fi; \
+  git -C '${repo_dir}' pull --ff-only origin '${repo_branch}'; \
+  git -C '${repo_dir}' submodule sync --recursive; \
   git -C '${repo_dir}' submodule update --init --recursive; \
 fi"
-
-  if [[ -f "${compat_patch}" && -d "${host_repo_dir}/.git" ]]; then
-    info "Applying local compatibility patch for so101_ros2"
-    if git -C "${host_repo_dir}" apply --check "${compat_patch}" >/dev/null 2>&1; then
-      git -C "${host_repo_dir}" apply "${compat_patch}"
-      success "Applied compatibility patch"
-    elif git -C "${host_repo_dir}" apply -R --check "${compat_patch}" >/dev/null 2>&1; then
-      info "Compatibility patch already applied"
-    else
-      warn "Compatibility patch does not apply cleanly; upstream may have changed."
-      warn "Patch file: ${compat_patch}"
-    fi
-  fi
 
   info "Normalizing bridge parameter YAML keys (namespace-safe)"
   compose_run "${mode}" exec -T lerobot bash -lc "\
