@@ -302,19 +302,6 @@ else \
   git -C '${repo_dir}' submodule update --init --recursive; \
 fi"
 
-  info "Normalizing bridge parameter YAML keys (namespace-safe)"
-  compose_run "${mode}" exec -T lerobot bash -lc "\
-set -euo pipefail; \
-for f in '${repo_dir}/so101_ros2_bridge/config/so101_leader_params.yaml' '${repo_dir}/so101_ros2_bridge/config/so101_follower_params.yaml'; do \
-  [ -f \"\${f}\" ] || continue; \
-  line_no=\$(awk 'NF && \$1 !~ /^#/ {print NR; exit}' \"\${f}\"); \
-  [ -n \"\${line_no}\" ] || continue; \
-  current=\$(sed -n \"\${line_no}p\" \"\${f}\" | tr -d '[:space:]'); \
-  if [ \"\${current}\" != '/**:' ]; then \
-    sed -i \"\${line_no}s|.*|/**:|\" \"\${f}\"; \
-  fi; \
-done"
-
   info "Installing ROS dependencies (with rosdep retry)"
   compose_run "${mode}" exec -T -u root lerobot bash -lc "\
 set -eo pipefail; \
