@@ -34,6 +34,42 @@ RUN if [ "${ENABLE_ROS2_HUMBLE}" = "1" ]; then \
         python3-vcstool \
         ros-dev-tools \
         ros-humble-rmw-cyclonedds-cpp \
+      && ros_runtime_pkgs="\
+        ros-humble-control-msgs \
+        ros-humble-control-toolbox \
+        ros-humble-controller-manager \
+        ros-humble-joint-state-publisher \
+        ros-humble-joint-state-publisher-gui \
+        ros-humble-launch-param-builder \
+        ros-humble-moveit \
+        ros-humble-moveit-common \
+        ros-humble-moveit-configs-utils \
+        ros-humble-moveit-core \
+        ros-humble-moveit-msgs \
+        ros-humble-moveit-ros-planning \
+        ros-humble-moveit-ros-planning-interface \
+        ros-humble-realsense2-camera \
+        ros-humble-robot-state-publisher \
+        ros-humble-ros2-control \
+        ros-humble-ros2-controllers \
+        ros-humble-rviz2 \
+        ros-humble-rviz-common \
+        ros-humble-rviz-default-plugins \
+        ros-humble-tf2-eigen \
+        ros-humble-tf2-ros \
+        ros-humble-usb-cam \
+        ros-humble-xacro" \
+      && installable_ros_runtime_pkgs="" \
+      && for pkg in ${ros_runtime_pkgs}; do \
+           if apt-cache show "${pkg}" >/dev/null 2>&1; then \
+             installable_ros_runtime_pkgs="${installable_ros_runtime_pkgs} ${pkg}"; \
+           else \
+             echo "Skipping unavailable ROS package: ${pkg}"; \
+           fi; \
+         done \
+      && if [ -n "${installable_ros_runtime_pkgs# }" ]; then \
+           apt-get install -y --no-install-recommends ${installable_ros_runtime_pkgs}; \
+         fi \
       && rm -rf /var/lib/apt/lists/* \
       && (rosdep init || true); \
     fi

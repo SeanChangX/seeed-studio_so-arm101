@@ -273,6 +273,8 @@ ros2_setup() {
   local ws_dir="/workspace/ros2_ws"
   local repo_dir="${ws_dir}/src/so101_ros2"
   local rosdep_skip="${ROSDEP_SKIP_KEYS:-topic_based_ros2_control_msgs}"
+  local rosdep_mode="${ROS2_SETUP_ROSDEP_MODE:-auto}"
+  local rosdep_should_run="0"
 
   ensure_humble_mode "${mode}"
   ensure_dirs
@@ -302,8 +304,58 @@ else \
   git -C '${repo_dir}' submodule update --init --recursive; \
 fi"
 
-  info "Installing ROS dependencies (with rosdep retry)"
-  compose_run "${mode}" exec -T -u root lerobot bash -lc "\
+  case "${rosdep_mode}" in
+    always|1|true|TRUE|yes|YES)
+      rosdep_should_run="1"
+      ;;
+    never|0|false|FALSE|no|NO)
+      rosdep_should_run="0"
+      info "Skipping rosdep (ROS2_SETUP_ROSDEP_MODE=${rosdep_mode})"
+      ;;
+    auto|AUTO|"")
+      info "Checking whether ROS runtime packages are preinstalled in image"
+      if compose_run "${mode}" exec -T -u root lerobot bash -lc "\
+set -eo pipefail; \
+required_pkgs='\
+ros-humble-control-toolbox \
+ros-humble-controller-manager \
+ros-humble-moveit-common \
+ros-humble-moveit-core \
+ros-humble-moveit-msgs \
+ros-humble-moveit-ros-planning \
+ros-humble-joint-state-publisher-gui \
+ros-humble-launch-param-builder \
+ros-humble-robot-state-publisher \
+ros-humble-rviz2 \
+ros-humble-tf2-eigen \
+ros-humble-tf2-ros \
+ros-humble-xacro'; \
+missing=''; \
+for pkg in \${required_pkgs}; do \
+  if ! dpkg -s \"\${pkg}\" >/dev/null 2>&1; then \
+    missing=\"\${missing} \${pkg}\"; \
+  fi; \
+done; \
+if [ -n \"\${missing}\" ]; then \
+  echo \"Missing preinstalled ROS runtime packages:\${missing}\" >&2; \
+  exit 1; \
+fi"; then
+        info "Runtime packages already present, skip rosdep"
+        rosdep_should_run="0"
+      else
+        warn "Runtime packages missing, will run rosdep install"
+        rosdep_should_run="1"
+      fi
+      ;;
+    *)
+      warn "Unknown ROS2_SETUP_ROSDEP_MODE=${rosdep_mode}, fallback to auto"
+      rosdep_should_run="1"
+      ;;
+  esac
+
+  if [[ "${rosdep_should_run}" == "1" ]]; then
+    info "Installing ROS dependencies (with rosdep retry)"
+    compose_run "${mode}" exec -T -u root lerobot bash -lc "\
 set -eo pipefail; \
 source /opt/ros/humble/setup.bash; \
 cd '${ws_dir}'; \
@@ -317,6 +369,7 @@ for i in 1 2 3; do \
   sleep 5; \
 done; \
 rosdep install --from-paths src --ignore-src -r -y --skip-keys '${rosdep_skip}'"
+  fi
 
   info "Building ROS2 workspace"
   compose_run "${mode}" exec -T lerobot bash -lc "\
