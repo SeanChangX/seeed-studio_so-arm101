@@ -314,21 +314,36 @@ fi"
       ;;
     auto|AUTO|"")
       info "Checking whether ROS runtime packages are preinstalled in image"
+      # Keep this list in sync with docker/Dockerfile ros_runtime_pkgs.
       if compose_run "${mode}" exec -T -u root lerobot bash -lc "\
 set -eo pipefail; \
 required_pkgs='\
+ros-humble-control-msgs \
 ros-humble-control-toolbox \
 ros-humble-controller-manager \
-ros-humble-moveit-common \
-ros-humble-moveit-core \
-ros-humble-moveit-msgs \
-ros-humble-moveit-ros-planning \
+ros-humble-joint-state-publisher \
 ros-humble-joint-state-publisher-gui \
 ros-humble-launch-param-builder \
+ros-humble-moveit \
+ros-humble-moveit-common \
+ros-humble-moveit-configs-utils \
+ros-humble-moveit-core \
+ros-humble-moveit-msgs \
+ros-humble-moveit-ros-move-group \
+ros-humble-moveit-ros-planning \
+ros-humble-moveit-ros-planning-interface \
+ros-humble-moveit-servo \
+ros-humble-realsense2-camera \
 ros-humble-robot-state-publisher \
+ros-humble-ros2-control \
+ros-humble-ros2-controllers \
 ros-humble-rviz2 \
+ros-humble-rviz-common \
+ros-humble-rviz-default-plugins \
 ros-humble-tf2-eigen \
 ros-humble-tf2-ros \
+ros-humble-rosbridge-suite \
+ros-humble-usb-cam \
 ros-humble-xacro'; \
 missing=''; \
 for pkg in \${required_pkgs}; do \
@@ -348,7 +363,7 @@ fi"; then
       fi
       ;;
     *)
-      warn "Unknown ROS2_SETUP_ROSDEP_MODE=${rosdep_mode}, fallback to auto"
+      warn "Unknown ROS2_SETUP_ROSDEP_MODE=${rosdep_mode}, running rosdep install"
       rosdep_should_run="1"
       ;;
   esac

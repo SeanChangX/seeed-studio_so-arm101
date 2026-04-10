@@ -46,8 +46,10 @@ RUN if [ "${ENABLE_ROS2_HUMBLE}" = "1" ]; then \
         ros-humble-moveit-configs-utils \
         ros-humble-moveit-core \
         ros-humble-moveit-msgs \
+        ros-humble-moveit-ros-move-group \
         ros-humble-moveit-ros-planning \
         ros-humble-moveit-ros-planning-interface \
+        ros-humble-moveit-servo \
         ros-humble-realsense2-camera \
         ros-humble-robot-state-publisher \
         ros-humble-ros2-control \
@@ -57,6 +59,7 @@ RUN if [ "${ENABLE_ROS2_HUMBLE}" = "1" ]; then \
         ros-humble-rviz-default-plugins \
         ros-humble-tf2-eigen \
         ros-humble-tf2-ros \
+        ros-humble-rosbridge-suite \
         ros-humble-usb-cam \
         ros-humble-xacro" \
       && installable_ros_runtime_pkgs="" \
@@ -78,14 +81,23 @@ USER user_lerobot
 
 WORKDIR /home/user_lerobot
 
+# ROS2 apt packages install Python modules into system site-packages; expose
+# them only for ROS2-enabled images to keep the default LeRobot venv isolated.
 RUN if [ ! -x /lerobot/.venv/bin/python ]; then \
-      python3 -m venv /lerobot/.venv; \
+      if [ "${ENABLE_ROS2_HUMBLE}" = "1" ]; then \
+        python3 -m venv /lerobot/.venv --system-site-packages; \
+      else \
+        python3 -m venv /lerobot/.venv; \
+      fi; \
+    elif [ "${ENABLE_ROS2_HUMBLE}" = "1" ]; then \
+      sed -i 's/include-system-site-packages = false/include-system-site-packages = true/' \
+        /lerobot/.venv/pyvenv.cfg || true; \
     fi \
     && if ! /lerobot/.venv/bin/python -m pip --version >/dev/null 2>&1; then \
          /lerobot/.venv/bin/python -m ensurepip --upgrade; \
        fi \
     && /lerobot/.venv/bin/python -m pip install --no-cache-dir --upgrade pip \
-    && /lerobot/.venv/bin/python -m pip install --no-cache-dir uv catkin_pkg
+    && /lerobot/.venv/bin/python -m pip install --no-cache-dir uv catkin_pkg ikpy tornado
 
 RUN --mount=type=cache,target=/home/user_lerobot/.cache/uv,uid=1000,gid=1000,mode=0755 \
     git clone https://github.com/Seeed-Projects/lerobot.git lerobot-seeed \
@@ -149,6 +161,11 @@ fi
 
 if [ -z "${PYTHONPATH:-}" ]; then
   export PYTHONPATH=/home/user_lerobot/lerobot-seeed/src:/lerobot/.venv/lib/python3.10/site-packages
+fi
+
+# ROS2 workspace setup (colcon install space)
+if [ -f /workspace/ros2_ws/install/local_setup.bash ]; then
+  source /workspace/ros2_ws/install/local_setup.bash
 fi
 
 PS1='\[\e[38;5;45m\]\u\[\e[0m\]@\[\e[38;5;220m\]\h\[\e[0m\]:\[\e[38;5;111m\]\w\[\e[0m\]\$ '

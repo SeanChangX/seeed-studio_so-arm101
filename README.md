@@ -176,6 +176,26 @@ ros2 launch so101_bringup so101_teleoperate.launch.py \
   enable_cameras:=false
 ```
 
+Web teleop launch (phone browser IMU control + follower):
+
+```bash
+ros2 launch so101_web_teleop so101_web_teleoperate.launch.py
+```
+
+Then open `http://<robot-host-ip>:8080` from the phone browser and tap `Take Control`.
+The page uses rosbridge on port `9090`, so keep the phone and robot/container on the same LAN.
+
+By default this runs over HTTP and does not need certificates. For HTTPS, uncomment the optional
+`./certs:/certs:ro` mount in `docker/docker-compose.yml`, place the cert/key under `./certs`,
+then pass both paths so the web server and rosbridge use TLS:
+
+```bash
+ros2 launch so101_web_teleop so101_web_teleoperate.launch.py \
+  http_port:=8443 \
+  ssl_cert:=/certs/robot.pem \
+  ssl_key:=/certs/robot-key.pem
+```
+
 If you do not have side RealSense yet, keep only USB claw camera in
 `so101_bringup/config/so101_cameras.yaml` and remove/comment the `cam_side` entry.
 Then rebuild:

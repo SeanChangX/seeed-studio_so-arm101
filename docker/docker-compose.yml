@@ -31,5 +31,7 @@ services:
       - ./cache/hf:/home/user_lerobot/.cache/huggingface
       - ./cache/torch:/home/user_lerobot/.cache/torch
       - ./cache/triton:/home/user_lerobot/.cache/triton
+      # HTTPS web teleop certificates are optional. Create ./certs and uncomment when needed.
+      # - ./certs:/certs:ro
     working_dir: /workspace
     command: /bin/bash
