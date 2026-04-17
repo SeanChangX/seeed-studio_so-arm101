@@ -177,25 +177,11 @@ default_image_name() {
   echo "ghcr.io/seanchangx/seeed-studio_so-arm101"
 }
 
-default_fallback_image_name() {
-  echo "seanchangx/seeed-lerobot"
-}
-
 image_ref_for_mode() {
   local mode="$1"
   local image_name="${IMAGE_NAME:-$(default_image_name)}"
   local image_tag="${IMAGE_TAG:-$(default_image_tag_for_mode "${mode}")}"
   printf "%s:%s" "${image_name}" "${image_tag}"
-}
-
-fallback_image_ref_for_mode() {
-  local mode="$1"
-  local fallback_name="${IMAGE_FALLBACK_NAME:-$(default_fallback_image_name)}"
-  local image_tag="${IMAGE_TAG:-$(default_image_tag_for_mode "${mode}")}"
-  if [[ -z "${fallback_name}" ]]; then
-    return 1
-  fi
-  printf "%s:%s" "${fallback_name}" "${image_tag}"
 }
 
 image_exists_for_mode() {
@@ -205,32 +191,18 @@ image_exists_for_mode() {
   docker image inspect "${image_ref}" >/dev/null 2>&1
 }
 
-pull_image_with_fallback_for_mode() {
+pull_image_for_mode() {
   local mode="$1"
   local primary_ref=""
-  local fallback_ref=""
 
   primary_ref="$(image_ref_for_mode "${mode}")"
   info "Trying to pull image: ${primary_ref}"
   if docker pull "${primary_ref}"; then
-    success "Pulled image from primary registry: ${primary_ref}"
+    success "Pulled image from registry: ${primary_ref}"
     return 0
   fi
 
-  fallback_ref="$(fallback_image_ref_for_mode "${mode}" || true)"
-  if [[ -z "${fallback_ref}" || "${fallback_ref}" == "${primary_ref}" ]]; then
-    warn "Primary pull failed and no fallback image is configured."
-    return 1
-  fi
-
-  warn "Primary pull failed, trying fallback image: ${fallback_ref}"
-  if docker pull "${fallback_ref}"; then
-    success "Pulled image from fallback registry: ${fallback_ref}"
-    docker tag "${fallback_ref}" "${primary_ref}" || true
-    return 0
-  fi
-
-  warn "Fallback pull also failed."
+  warn "Pull failed: ${primary_ref}"
   return 1
 }
 
@@ -514,7 +486,7 @@ run_command_deck_once() {
         info "Skip build in quickstart. Use action 'build' to rebuild."
       else
         info "Image not found locally, trying registry pull before build."
-        if pull_image_with_fallback_for_mode "${ACTIVE_PROFILE}"; then
+        if pull_image_for_mode "${ACTIVE_PROFILE}"; then
           success "Using pulled image for quickstart."
         else
           info "No pullable image found, running build first."

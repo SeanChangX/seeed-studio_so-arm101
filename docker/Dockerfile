@@ -49,6 +49,7 @@ RUN if [ "${ENABLE_ROS2_HUMBLE}" = "1" ]; then \
         ros-humble-moveit-ros-move-group \
         ros-humble-moveit-ros-planning \
         ros-humble-moveit-ros-planning-interface \
+        ros-humble-moveit-ros-visualization \
         ros-humble-moveit-servo \
         ros-humble-realsense2-camera \
         ros-humble-robot-state-publisher \
