@@ -176,6 +176,23 @@ ros2 launch so101_bringup so101_teleoperate.launch.py \
   enable_cameras:=false
 ```
 
+### WebXR phone teleop (follower only)
+
+Launch follower stack + WebXR teleop:
+
+```bash
+ros2 launch so101_bringup so101_webxr_teleop.launch.py \
+  tf_prefix_mode:=none \
+  webxr_host:=0.0.0.0 \
+  webxr_port:=4443
+```
+
+Notes:
+
+- WebXR pose drives IK on `/follower/arm_controller/joint_trajectory`.
+- Gripper values from the web UI are sent to `/follower/gripper_controller/gripper_cmd` (action), configurable via `gripper_*` launch args.
+- Camera permission on phone does not guarantee AR passthrough rendering; this flow relies on phone/WebXR pose tracking.
+
 ### MoveIt (follower)
 
 Hardware + `move_group` + RViz (plan and execute in RViz):
