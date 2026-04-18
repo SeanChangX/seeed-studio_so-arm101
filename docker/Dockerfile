@@ -98,7 +98,8 @@ RUN if [ ! -x /lerobot/.venv/bin/python ]; then \
          /lerobot/.venv/bin/python -m ensurepip --upgrade; \
        fi \
     && /lerobot/.venv/bin/python -m pip install --no-cache-dir --upgrade pip \
-    && /lerobot/.venv/bin/python -m pip install --no-cache-dir uv catkin_pkg ikpy tornado
+    && /lerobot/.venv/bin/python -m pip install --no-cache-dir uv catkin_pkg ikpy tornado \
+    && /lerobot/.venv/bin/python -m pip install --no-cache-dir 'teleop[utils]' matplotlib
 
 RUN --mount=type=cache,target=/home/user_lerobot/.cache/uv,uid=1000,gid=1000,mode=0755 \
     git clone https://github.com/Seeed-Projects/lerobot.git lerobot-seeed \
